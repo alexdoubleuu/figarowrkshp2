@@ -67,7 +67,6 @@ figaro/
 │   └── php/Dockerfile
 ├── compose.yml           # production
 ├── compose.dev.yml       # local overrides (option B, full Docker)
-├── compose.services.yml  # local Postgres/Redis/Mailpit (option A, Herd)
 ├── .env.example          # copy to .env (never commit .env)
 ├── deploy.sh
 └── backup.sh
@@ -87,7 +86,14 @@ RUN install-php-extensions intl gd bcmath
 USER www-data
 
 FROM base AS development
-# code is bind-mounted in dev
+# code is bind-mounted in dev; match www-data to your WSL user so
+# files created by artisan/composer are owned by you, and storage/ is writable
+USER root
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN docker-php-serversideup-set-id www-data $USER_ID:$GROUP_ID && \
+    docker-php-serversideup-set-file-permissions --owner $USER_ID:$GROUP_ID
+USER www-data
 
 FROM base AS production
 COPY --chown=www-data:www-data backend/ /var/www/html
@@ -254,19 +260,22 @@ services:
   app:
     build:
       target: development
+      args:
+        USER_ID: ${UID:-1000}
+        GROUP_ID: ${GID:-1000}
     image: figaro-api:dev
-    volumes:
+    volumes: !override          # dev: no named storage volume, use backend/storage directly
       - ./backend:/var/www/html
     environment: *dev-env
     ports: !override            # needs Docker Compose >= 2.24
       - "127.0.0.1:8000:8080"
   queue:
     image: figaro-api:dev
-    volumes: [ "./backend:/var/www/html" ]
+    volumes: !override [ "./backend:/var/www/html" ]
     environment: *dev-env
   scheduler:
     image: figaro-api:dev
-    volumes: [ "./backend:/var/www/html" ]
+    volumes: !override [ "./backend:/var/www/html" ]
     environment: *dev-env
   postgres:
     ports: [ "127.0.0.1:5432:5432" ]   # for TablePlus/DBeaver
@@ -288,7 +297,8 @@ Notes:
 - Compose merges the `environment` maps, so dev values override `.env` and the production values from `compose.yml`; DB/Redis credentials still come from `.env`.
 - Mailpit web UI: http://localhost:8025
 - The `frontend` service uses a profile so `make up` works before `frontend/` exists (see Makefile).
-- Note: in dev, the `storage` named volume from compose.yml is mounted over `backend/storage`. That's intentional (uploads/logs survive rebuilds). Use `make logs` for logs.
+- In dev, `volumes: !override` drops the production `storage` named volume, so Laravel uses the bind-mounted `backend/storage` (visible on your machine). The named volume is production-only.
+- `www-data` in the dev image is remapped to your WSL user (UID/GID 1000 by default) so bind-mounted files have the right owner.
 
 ### .env.example (key lines)
 
