@@ -33,6 +33,7 @@ services:
     environment: *dev-env
   postgres:
     ports: [ "127.0.0.1:5432:5432" ]   # for TablePlus/DBeaver
+    volumes: [ "./docker/postgres/init:/docker-entrypoint-initdb.d" ]   # creates figaro_test on a fresh volume
   mailpit:
     image: axllent/mailpit
     ports: [ "127.0.0.1:1025:1025", "127.0.0.1:8025:8025" ]   # SMTP + web UI

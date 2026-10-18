@@ -21,6 +21,7 @@
 - Code, table and column names in English.
 - Money stored as integer cents (HKD).
 - Every feature needs a Pest/PHPUnit feature test; run `make test` before saying a task is done.
+- Tests run against the figaro_test database (forced in phpunit.xml). Feature tests may use RefreshDatabase.
 - Small commits, one feature per task.
 
 ## Docs
