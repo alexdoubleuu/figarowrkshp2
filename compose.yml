@@ -1,0 +1,71 @@
+name: figaro
+
+x-app: &app
+  image: figaro-api:latest
+  env_file: .env
+  environment:
+    PHP_OPCACHE_ENABLE: "1"
+    PHP_UPLOAD_MAX_FILE_SIZE: "50M"
+    PHP_POST_MAX_SIZE: "55M"
+    NGINX_CLIENT_MAX_BODY_SIZE: "55M"
+  volumes:
+    - storage:/var/www/html/storage
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis:    { condition: service_started }
+  restart: unless-stopped
+
+services:
+  app:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: production
+    ports:
+      - "127.0.0.1:8080:8080"   # serversideup fpm-nginx listens on 8080 by default
+
+  queue:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3"]
+    stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "healthcheck-queue"]
+      start_period: 10s
+
+  scheduler:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      start_period: 10s
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    command: >
+      postgres -c shared_buffers=1GB -c effective_cache_size=3GB
+               -c work_mem=16MB -c maintenance_work_mem=256MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+volumes:
+  storage:
+  pgdata:
+  redisdata:

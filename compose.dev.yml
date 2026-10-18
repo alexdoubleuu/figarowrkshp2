@@ -1,0 +1,44 @@
+x-dev-env: &dev-env
+  APP_ENV: local
+  APP_DEBUG: "true"
+  APP_URL: http://localhost:8000
+  FRONTEND_URL: http://localhost:5173
+  SESSION_SECURE_COOKIE: "false"
+  LOG_CHANNEL: stack
+  MAIL_MAILER: smtp
+  MAIL_HOST: mailpit
+  MAIL_PORT: "1025"
+  PHP_OPCACHE_ENABLE: "0"
+
+services:
+  app:
+    build:
+      target: development
+    image: figaro-api:dev
+    volumes:
+      - ./backend:/var/www/html
+    environment: *dev-env
+    ports: !override            # needs Docker Compose >= 2.24
+      - "127.0.0.1:8000:8080"
+  queue:
+    image: figaro-api:dev
+    volumes: [ "./backend:/var/www/html" ]
+    environment: *dev-env
+  scheduler:
+    image: figaro-api:dev
+    volumes: [ "./backend:/var/www/html" ]
+    environment: *dev-env
+  postgres:
+    ports: [ "127.0.0.1:5432:5432" ]   # for TablePlus/DBeaver
+  mailpit:
+    image: axllent/mailpit
+    ports: [ "127.0.0.1:1025:1025", "127.0.0.1:8025:8025" ]   # SMTP + web UI
+  frontend:
+    image: node:24
+    working_dir: /app
+    volumes: [ "./frontend:/app" ]
+    environment:
+      VITE_API_URL: http://localhost:8000
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports: [ "127.0.0.1:5173:5173" ]
+    profiles: [ "frontend" ]   # enabled by `make up` once frontend/ exists
