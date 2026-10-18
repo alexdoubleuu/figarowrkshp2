@@ -14,19 +14,22 @@ services:
   app:
     build:
       target: development
+      args:
+        USER_ID: ${UID:-1000}
+        GROUP_ID: ${GID:-1000}
     image: figaro-api:dev
-    volumes:
+    volumes: !override          # dev: no named storage volume, use backend/storage directly
       - ./backend:/var/www/html
     environment: *dev-env
     ports: !override            # needs Docker Compose >= 2.24
       - "127.0.0.1:8000:8080"
   queue:
     image: figaro-api:dev
-    volumes: [ "./backend:/var/www/html" ]
+    volumes: !override [ "./backend:/var/www/html" ]
     environment: *dev-env
   scheduler:
     image: figaro-api:dev
-    volumes: [ "./backend:/var/www/html" ]
+    volumes: !override [ "./backend:/var/www/html" ]
     environment: *dev-env
   postgres:
     ports: [ "127.0.0.1:5432:5432" ]   # for TablePlus/DBeaver
